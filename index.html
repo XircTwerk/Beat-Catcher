@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Beat Catcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Main canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- CRT scanline overlay -->
+  <div id="crt"></div>
+
+  <!-- MAIN MENU -->
+  <div id="screen-menu" class="overlay">
+    <div class="overlay-content">
+      <div class="logo">
+        <span class="logo-beat">BEAT</span>
+        <span class="logo-catcher">CATCHER</span>
+      </div>
+      <p class="tagline">Draw lines. Catch beats. Feel the rhythm.</p>
+
+      <div class="difficulty-row">
+        <button class="diff-btn active" data-diff="easy">EASY</button>
+        <button class="diff-btn" data-diff="medium">MEDIUM</button>
+        <button class="diff-btn" data-diff="hard">HARD</button>
+      </div>
+
+      <button id="btn-play" class="neon-btn primary-btn">► PLAY</button>
+
+      <div class="instructions">
+        <p><span class="key">HOLD</span> mouse button &amp; draw to catch beats at the center</p>
+        <p><span class="key">ESC</span> to quit during play</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="screen-gameover" class="overlay hidden">
+    <div class="overlay-content">
+      <h1 class="gameover-title">GAME OVER</h1>
+      <div class="result-grid">
+        <div class="result-item">
+          <span class="result-label">SCORE</span>
+          <span id="result-score" class="result-value cyan">0</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">MAX COMBO</span>
+          <span id="result-combo" class="result-value magenta">0</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">ACCURACY</span>
+          <span id="result-accuracy" class="result-value yellow">0%</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">PERFECT</span>
+          <span id="result-perfects" class="result-value cyan">0</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">GOOD</span>
+          <span id="result-goods" class="result-value green">0</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">MISS</span>
+          <span id="result-misses" class="result-value red">0</span>
+        </div>
+      </div>
+      <button id="btn-retry" class="neon-btn primary-btn">► PLAY AGAIN</button>
+      <button id="btn-menu" class="neon-btn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
