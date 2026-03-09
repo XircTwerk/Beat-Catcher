@@ -1,9 +1,9 @@
 'use strict';
 // ============================================================
-//  BEAT CATCHER v2 — Complete Rewrite
-//  Systems: BeatAnalyzer · Audio · DrawSystem · Beat3D
+//  BEAT CATCHER v3 — 3×3 Grid + Hover-to-Catch
+//  Systems: BeatAnalyzer · Audio · DrawSystem · Beat
 //           · BeatSystem · Particles · Shake · Health
-//           · Score · TunnelBG · Render · Patterns · Game
+//           · Score · GridBG · Render · Patterns · Game
 // ============================================================
 
 const TAU = Math.PI * 2;
@@ -28,10 +28,8 @@ const C = {
   GOLD:    '#FFD700',
 };
 
-// Beat colour per type
 const BEAT_C = { normal: C.CYAN, hold: C.YELLOW, chain: C.MAGENTA, directional: C.PURPLE };
 
-// Combo-level theme colours (escalating intensity)
 const COMBO_COLORS = [C.CYAN, C.GREEN, C.YELLOW, C.ORANGE, C.MAGENTA, C.WHITE];
 function comboColor(combo) {
   const idx = Math.min(Math.floor(combo / 10), COMBO_COLORS.length - 1);
@@ -42,32 +40,28 @@ function comboColor(combo) {
 //  CONFIG
 // ============================================================
 const CFG = {
-  // Hit ring
-  HIT_RING_RATIO: 0.42,       // ring radius = this × min(W,H)
+  // Grid
+  GRID_RATIO:  0.82,           // grid occupies this fraction of min(W,H)
 
   // Beat travel & catch
-  BEAT_R_MIN:  5,              // radius at spawn (far/tiny)
-  BEAT_R_MAX: 32,              // radius at hit ring
+  BEAT_R_MIN:  5,
+  BEAT_R_MAX: 36,
 
   // Slash
-  SLASH_MIN_PTS: 2,            // must have ≥ 2 points to deploy
-  SLASH_HIT_MULT: 1.5,         // extra radius for hit detection
-
-  // Approach ring: shown at lane endpoint, shrinks as beat approaches
-  APPROACH_RING_MULT: 5,       // approach ring starts at this × beat radius
+  SLASH_MIN_PTS:   2,
+  SLASH_HIT_MULT:  1.5,
 
   // Scoring
   SCORE_PERFECT: 300,
   SCORE_GOOD:    150,
-  SCORE_MULTI:   80,           // bonus per extra beat beyond first in one slash
-  MULT_STEPS:    [0, 5, 15, 30, 60], // combo thresholds → multiplier 1×–5×
+  SCORE_MULTI:   80,
+  MULT_STEPS:    [0, 5, 15, 30, 60],
 
   // Health
   HP_START:    100,
   HP_HIT_GAIN: 3,
   HP_MISS:     22,
   HP_WHIFF:    10,
-  HP_DRAIN_HARD: 1.5,          // %/sec passive drain on hard
 
   // Difficulty
   DIFF: {
@@ -76,6 +70,24 @@ const CFG = {
     hard:   { BPM: 185, travelBeats: 3, catchBeats: 0.65,slashMs:  650, maxLanes: 8, hpDrain: 1.5 },
   },
 };
+
+// 3×3 grid: 8 outer cells mapped to lane 0–7
+// Layout:
+//   [0][1][2]
+//   [3][C][4]
+//   [5][6][7]
+// col/row in grid coords (0-2)
+const LANE_TO_CELL = [
+  [0,0], // 0 → top-left
+  [1,0], // 1 → top-center
+  [2,0], // 2 → top-right
+  [0,1], // 3 → middle-left
+  [2,1], // 4 → middle-right
+  [0,2], // 5 → bottom-left
+  [1,2], // 6 → bottom-center
+  [2,2], // 7 → bottom-right
+];
+const CENTER_COL = 1, CENTER_ROW = 1;
 
 // ============================================================
 //  BEAT ANALYZER  (MP3 → onset timestamps)
@@ -87,10 +99,9 @@ async function analyzeAudio(arrayBuffer, progressCb) {
 
   const raw = decoded.getChannelData(0);
   const sr  = decoded.sampleRate;
-  const hop = Math.floor(sr * 0.02);   // 20ms hop
+  const hop = Math.floor(sr * 0.02);
   const win = hop * 2;
 
-  // RMS energy per frame
   const energies = [];
   for (let i = 0; i + win < raw.length; i += hop) {
     let e = 0;
@@ -99,13 +110,10 @@ async function analyzeAudio(arrayBuffer, progressCb) {
   }
   progressCb(0.55);
 
-  // Onset strength = positive energy difference
   const onset = [0];
-  for (let i = 1; i < energies.length; i++) {
+  for (let i = 1; i < energies.length; i++)
     onset.push(Math.max(0, energies[i] - energies[i-1]));
-  }
 
-  // Smooth onset
   const smoothed = onset.map((v, i) => {
     const half = 4;
     let sum = 0, cnt = 0;
@@ -116,25 +124,23 @@ async function analyzeAudio(arrayBuffer, progressCb) {
   });
   progressCb(0.75);
 
-  // Pick peaks
   const mean = smoothed.reduce((a,b)=>a+b,0) / smoothed.length;
   const sq   = smoothed.reduce((a,b)=>a+b*b,0) / smoothed.length;
   const std  = Math.sqrt(Math.max(0, sq - mean*mean));
   const threshold = mean + std * 1.2;
-  const minGapFrames = Math.floor(0.12 * sr / hop); // 120ms min spacing
+  const minGapFrames = Math.floor(0.12 * sr / hop);
 
   const beats = [];
   let lastFrame = -minGapFrames;
   for (let i = 1; i < smoothed.length - 1; i++) {
     if (smoothed[i] > smoothed[i-1] && smoothed[i] > smoothed[i+1] &&
         smoothed[i] > threshold && i - lastFrame >= minGapFrames) {
-      beats.push(i * hop / sr); // seconds
+      beats.push(i * hop / sr);
       lastFrame = i;
     }
   }
   progressCb(1.0);
 
-  // Estimate BPM from median IOI
   let bpm = 130;
   if (beats.length > 2) {
     const iois = [];
@@ -153,12 +159,10 @@ async function analyzeAudio(arrayBuffer, progressCb) {
 // ============================================================
 class AudioSystem {
   constructor() {
-    this.ctx        = null;
-    this.master     = null;
-    this.srcNode    = null;   // custom track source
-    this.enabled    = true;
-    this._startAudioT  = 0;  // audioCtx.currentTime when track started
-    this._startPerfT   = 0;  // performance.now() when track started
+    this.ctx    = null;
+    this.master = null;
+    this.srcNode= null;
+    this.enabled= true;
   }
 
   init() {
@@ -172,10 +176,8 @@ class AudioSystem {
   }
 
   resume() { if (this.ctx?.state === 'suspended') this.ctx.resume(); }
-
   get currentTime() { return this.ctx ? this.ctx.currentTime : 0; }
 
-  // Play a decoded audio buffer as the main track
   playBuffer(decodedBuffer, startDelayMs = 200) {
     if (!this.ctx) return 0;
     if (this.srcNode) { try { this.srcNode.stop(); } catch(e){} }
@@ -185,16 +187,13 @@ class AudioSystem {
     const when = this.ctx.currentTime + startDelayMs/1000;
     src.start(when);
     this.srcNode = src;
-    this._startAudioT = when;
-    this._startPerfT  = now() + startDelayMs;
-    return this._startPerfT;
+    return now() + startDelayMs;
   }
 
   stopTrack() {
     if (this.srcNode) { try { this.srcNode.stop(); } catch(e){} this.srcNode = null; }
   }
 
-  // --- Procedural sounds ---
   _osc(type, freq, t, dur, peakGain, endGain = 0.001) {
     if (!this.enabled || !this.ctx) return;
     const o = this.ctx.createOscillator();
@@ -210,7 +209,7 @@ class AudioSystem {
     if (!this.enabled || !this.ctx) return;
     const len = Math.floor(this.ctx.sampleRate * Math.max(dur, 0.05));
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-    const d   = buf.getChannelData(0);
+    const d = buf.getChannelData(0);
     for (let i=0;i<len;i++) d[i]=Math.random()*2-1;
     const src=this.ctx.createBufferSource(); src.buffer=buf;
     const g=this.ctx.createGain();
@@ -262,8 +261,7 @@ class AudioSystem {
 
   playMiss() {
     if(!this.enabled||!this.ctx)return;
-    const t=this.ctx.currentTime;
-    this._osc('sawtooth',200,t,0.2,0.28);
+    this._osc('sawtooth',200,this.ctx.currentTime,0.2,0.28);
   }
 
   playMulti(count) {
@@ -275,17 +273,20 @@ class AudioSystem {
 }
 
 // ============================================================
-//  DRAW SYSTEM  — hold to draw, release to slash
+//  DRAW SYSTEM  — track mouse; hold to draw, release to slash
 // ============================================================
 class DrawSystem {
   constructor(canvas) {
     this.canvas    = canvas;
-    this.state     = 'idle';   // 'idle' | 'drawing' | 'deployed'
-    this.preview   = [];       // points while drawing (cleared on release)
-    this.deployed  = [];       // frozen snapshot of preview on release
+    this.state     = 'idle';
+    this.preview   = [];
+    this.deployed  = [];
     this.deployedAt= 0;
-    this.deployDur = 1000;     // set per difficulty
-    this.hitCount  = 0;        // beats hit by current deploy
+    this.deployDur = 1000;
+    this.hitCount  = 0;
+    // Mouse position (always tracked, even when not drawing)
+    this.mouseX    = -9999;
+    this.mouseY    = -9999;
     this._bind();
   }
 
@@ -298,14 +299,17 @@ class DrawSystem {
     };
 
     const down = (e) => {
-      if(this.state==='deployed')return; // let slash expire first
+      if(this.state==='deployed')return;
       this.state='drawing';
       this.preview=[];
-      const p=pos(e); this.preview.push(p);
+      const p=pos(e);
+      this.mouseX=p.x; this.mouseY=p.y;
+      this.preview.push(p);
     };
     const move = (e) => {
-      if(this.state!=='drawing')return;
       const p=pos(e);
+      this.mouseX=p.x; this.mouseY=p.y;
+      if(this.state!=='drawing')return;
       const last=this.preview[this.preview.length-1];
       if(!last||dist(p.x,p.y,last.x,last.y)>4)this.preview.push(p);
     };
@@ -325,7 +329,7 @@ class DrawSystem {
     cv.addEventListener('mousedown',  e=>{ e.preventDefault(); down(e); });
     cv.addEventListener('mousemove',  e=>{ move(e); });
     cv.addEventListener('mouseup',    ()=>up());
-    cv.addEventListener('mouseleave', ()=>up());
+    cv.addEventListener('mouseleave', ()=>{ up(); this.mouseX=-9999; this.mouseY=-9999; });
 
     cv.addEventListener('touchstart', e=>{ e.preventDefault(); down(e.touches[0]); },{passive:false});
     cv.addEventListener('touchmove',  e=>{ e.preventDefault(); move(e.touches[0]); },{passive:false});
@@ -345,7 +349,7 @@ class DrawSystem {
 }
 
 // ============================================================
-//  GEOMETRY HELPER — segment × circle intersection
+//  GEOMETRY — segment × circle
 // ============================================================
 function segCircle(ax,ay,bx,by,cx,cy,r) {
   const dx=bx-ax, dy=by-ay;
@@ -365,67 +369,56 @@ function slashHitsBeat(points, bx, by, br) {
   for(let i=0;i<points.length-1;i++){
     if(segCircle(points[i].x,points[i].y,points[i+1].x,points[i+1].y,bx,by,br))return true;
   }
-  // Also check single-point proximity (for very short slashes)
   for(const p of points) if(dist(p.x,p.y,bx,by)<=br)return true;
   return false;
 }
 
 // ============================================================
-//  BEAT  (3D depth — grows from centre toward hit ring)
+//  BEAT  — travels from outer grid cell to centre cell
 // ============================================================
-const LANE_ANGLES = Array.from({length:8},(_,i)=>i*TAU/8-Math.PI/2);
-// 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-
 class Beat {
-  constructor(id, laneIdx, type, spawnTime, arrivalTime, catchMs) {
+  constructor(id, laneIdx, type, spawnTime, arrivalTime, catchMs, sx, sy, ex, ey) {
     this.id          = id;
     this.laneIdx     = laneIdx;
-    this.laneAngle   = LANE_ANGLES[laneIdx % 8];
     this.type        = type;
     this.spawnTime   = spawnTime;
     this.arrivalTime = arrivalTime;
     this.catchStart  = arrivalTime - catchMs*0.4;
     this.catchEnd    = arrivalTime + catchMs*0.6;
 
-    this.state       = 'traveling'; // 'traveling'|'catchable'|'hit'|'miss'
-    this.alpha       = 1;
-    this.hitRating   = null;
-    this._dieT       = 0;
-    this._scored     = false;
-    this.glowSeed    = Math.random()*TAU;
+    // Grid positions
+    this.sx = sx; this.sy = sy;   // outer cell centre (spawn)
+    this.ex = ex; this.ey = ey;   // centre cell centre (target)
 
-    // Hold-beat specific
-    this.holdMs      = 0;
-    this.holdNeeded  = 500;
+    // Direction angle for decorative arrows
+    this.angle = Math.atan2(ey-sy, ex-sx);
+
+    this.state    = 'traveling';
+    this.alpha    = 1;
+    this.hitRating= null;
+    this._dieT    = 0;
+    this._scored  = false;
+    this.glowSeed = Math.random()*TAU;
+
+    this.holdMs     = 0;
+    this.holdNeeded = 500;
   }
 
-  // 0 = at centre (spawned), 1 = at hit ring (arrived)
   get travelProgress() {
     return clamp((now()-this.spawnTime)/(this.arrivalTime-this.spawnTime),0,1);
   }
 
-  // Position (needs hitRadius and cx/cy from outside)
-  pos(cx, cy, hitRadius) {
+  pos() {
     const t = this.travelProgress;
-    return {
-      x: cx + Math.cos(this.laneAngle)*hitRadius*t,
-      y: cy + Math.sin(this.laneAngle)*hitRadius*t,
-    };
+    return { x: lerp(this.sx, this.ex, t), y: lerp(this.sy, this.ey, t) };
   }
+
+  outerPos() { return { x: this.sx, y: this.sy }; }
 
   get radius() {
     return lerp(CFG.BEAT_R_MIN, CFG.BEAT_R_MAX, this.travelProgress);
   }
 
-  // Lane endpoint at hit ring
-  endpoint(cx, cy, hitRadius) {
-    return {
-      x: cx + Math.cos(this.laneAngle)*hitRadius,
-      y: cy + Math.sin(this.laneAngle)*hitRadius,
-    };
-  }
-
-  // 0 = just entered catchable, 1 = expiring
   get catchProgress() {
     const win = this.catchEnd - this.catchStart;
     return clamp((now()-this.catchStart)/win, 0, 1);
@@ -440,8 +433,8 @@ class Beat {
 class BeatSystem {
   constructor() { this.beats=[]; this._id=0; }
 
-  spawn(laneIdx, type, spawnTime, arrivalTime, catchMs) {
-    this.beats.push(new Beat(this._id++, laneIdx, type, spawnTime, arrivalTime, catchMs));
+  spawn(laneIdx, type, spawnTime, arrivalTime, catchMs, sx, sy, ex, ey) {
+    this.beats.push(new Beat(this._id++, laneIdx, type, spawnTime, arrivalTime, catchMs, sx, sy, ex, ey));
   }
 
   update(dt) {
@@ -579,55 +572,45 @@ class ScoreSystem {
 }
 
 // ============================================================
-//  TUNNEL BACKGROUND — expanding rings for depth illusion
+//  GRID BACKGROUND — expanding squares + grid glow
 // ============================================================
-class TunnelBG {
-  constructor(){ this.rings=[]; this._lastBeat=0; }
+class GridBG {
+  constructor(){ this.pulses=[]; }
 
-  onBeat(t){ this.rings.push({born:t, life:2200}); }
+  onBeat(t){ this.pulses.push({born:t, life:2000}); }
 
-  update(dt){
-    this.rings=this.rings.filter(r=>now()-r.born<r.life);
-  }
+  update(){ this.pulses=this.pulses.filter(p=>now()-p.born<p.life); }
 
-  draw(ctx,cx,cy,hitRadius,beatPhase,themeColor,W,H){
+  draw(ctx, left, top, cellSize, beatPhase, themeColor) {
     ctx.save();
+    const gridSize = cellSize*3;
 
-    // 8 lane lines from centre to screen edges
-    for(let i=0;i<8;i++){
-      const a=LANE_ANGLES[i];
-      const ex=cx+Math.cos(a)*W, ey=cy+Math.sin(a)*H;
-      const alpha=0.04+0.03*Math.sin(beatPhase*TAU+i*0.4);
-      ctx.strokeStyle=`rgba(0,80,180,${alpha})`;
-      ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ex,ey); ctx.stroke();
-    }
-
-    // Expanding tunnel rings
+    // Expanding square pulses
     const t=now();
-    for(const ring of this.rings){
-      const age=(t-ring.born)/ring.life;
-      const r=age*hitRadius*1.6;
-      const alpha=(1-age)*0.18;
-      ctx.strokeStyle=themeColor.replace(')',`,${alpha})`).replace('rgb','rgba').replace('#','rgba('+
-        parseInt(themeColor.slice(1,3),16)+','+parseInt(themeColor.slice(3,5),16)+','+parseInt(themeColor.slice(5,7),16)+',').replace('rgba(rgba','rgba');
-      // simpler:
-      ctx.globalAlpha=(1-age)*0.15;
+    for(const p of this.pulses){
+      const age=(t-p.born)/p.life;
+      const expand=age*gridSize*0.8;
+      const cx=left+gridSize/2, cy=top+gridSize/2;
+      ctx.globalAlpha=(1-age)*0.12;
       ctx.strokeStyle=themeColor;
       ctx.lineWidth=2;
-      ctx.shadowBlur=8; ctx.shadowColor=themeColor;
-      ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke();
-      ctx.globalAlpha=1; ctx.shadowBlur=0;
+      ctx.shadowBlur=10; ctx.shadowColor=themeColor;
+      ctx.strokeRect(cx-expand/2, cy-expand/2, expand, expand);
+    }
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+    // Corner-to-corner diagonal lines (depth lines)
+    const cx=left+gridSize/2, cy=top+gridSize/2;
+    ctx.globalAlpha=0.04;
+    ctx.strokeStyle='#0044aa';
+    ctx.lineWidth=1;
+    const corners=[
+      [left,top],[left+gridSize,top],[left+gridSize,top+gridSize],[left,top+gridSize]
+    ];
+    for(const [px,py] of corners){
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(px,py); ctx.stroke();
     }
 
-    // Static concentric reference circles
-    for(let i=1;i<=3;i++){
-      const r=hitRadius*(i/3);
-      const alpha=0.04+0.02*Math.sin(beatPhase*TAU);
-      ctx.globalAlpha=alpha; ctx.strokeStyle='#004488'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke();
-    }
-    ctx.globalAlpha=1;
     ctx.restore();
   }
 }
@@ -647,45 +630,69 @@ class RenderSystem {
     this.ctx.fillRect(0,0,this.W,this.H);
   }
 
-  // Hit ring + centre dot
-  drawHitRing(cx,cy,r,beatPhase,themeColor){
+  // Draw the 3×3 grid
+  drawGrid(left, top, cellSize, beatPhase, themeColor) {
     const ctx=this.ctx;
+    const gs=cellSize*3;
     ctx.save();
-    const pulse=0.45+0.2*Math.sin(beatPhase*TAU);
+
+    // Grid lines
+    const pulse=0.15+0.08*Math.sin(beatPhase*TAU);
     ctx.strokeStyle=themeColor;
     ctx.globalAlpha=pulse;
-    ctx.lineWidth=2.5;
-    ctx.shadowBlur=20; ctx.shadowColor=themeColor;
-    ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke();
-    ctx.globalAlpha=1; ctx.shadowBlur=0;
+    ctx.lineWidth=1.5;
+    ctx.shadowBlur=12; ctx.shadowColor=themeColor;
+
+    for(let i=0;i<=3;i++){
+      const x=left+i*cellSize;
+      ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,top+gs); ctx.stroke();
+      const y=top+i*cellSize;
+      ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(left+gs,y); ctx.stroke();
+    }
+
+    // Center cell highlight
+    ctx.shadowBlur=0;
+    const cx2=left+cellSize, cy2=top+cellSize;
+    const cPulse=0.06+0.04*Math.sin(beatPhase*TAU);
+    ctx.globalAlpha=cPulse;
+    ctx.fillStyle=themeColor;
+    ctx.fillRect(cx2,cy2,cellSize,cellSize);
+
+    // Center dot
+    ctx.globalAlpha=0.6+0.2*Math.sin(beatPhase*TAU);
+    ctx.fillStyle=themeColor;
+    ctx.shadowBlur=18; ctx.shadowColor=themeColor;
+    ctx.beginPath();
+    ctx.arc(left+cellSize*1.5, top+cellSize*1.5, 5, 0, TAU);
+    ctx.fill();
+
+    ctx.shadowBlur=0; ctx.globalAlpha=1;
     ctx.restore();
   }
 
-  // Approach indicator at the lane endpoint
-  drawApproachIndicator(cx,cy,hitRadius,beat,themeColor){
+  // Outer cell approach indicator
+  drawApproachIndicator(beat, themeColor) {
     const ctx=this.ctx;
     if(beat.state!=='traveling'&&beat.state!=='catchable')return;
-    const ep=beat.endpoint(cx,cy,hitRadius);
+    const op=beat.outerPos();
     const tp=clamp(1-(beat.arrivalTime-now())/(beat.arrivalTime-beat.spawnTime),0,1);
-    // Shrinking approach ring
-    const maxR=CFG.BEAT_R_MAX*CFG.APPROACH_RING_MULT;
-    const curR=lerp(maxR,CFG.BEAT_R_MAX*1.15,tp);
+    const maxR=CFG.BEAT_R_MAX*5;
+    const curR=lerp(maxR, CFG.BEAT_R_MAX*1.15, tp);
     const alpha=tp*0.6+0.1;
     const color=BEAT_C[beat.type]||C.CYAN;
     ctx.save();
     ctx.globalAlpha=alpha*beat.alpha;
-    ctx.strokeStyle=color;
-    ctx.lineWidth=2;
+    ctx.strokeStyle=color; ctx.lineWidth=2;
     ctx.shadowBlur=10; ctx.shadowColor=color;
-    ctx.beginPath(); ctx.arc(ep.x,ep.y,curR,0,TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(op.x,op.y,curR,0,TAU); ctx.stroke();
     ctx.globalAlpha=1; ctx.shadowBlur=0;
     ctx.restore();
   }
 
-  // 3D beat circle — grows as it approaches hit ring
-  drawBeat(beat,cx,cy,hitRadius){
+  // Beat circle — grows as it approaches centre
+  drawBeat(beat) {
     const ctx=this.ctx;
-    const p=beat.pos(cx,cy,hitRadius);
+    const p=beat.pos();
     const r=beat.radius;
     const color=BEAT_C[beat.type]||C.CYAN;
     const t=now();
@@ -693,18 +700,15 @@ class RenderSystem {
     ctx.save();
     ctx.globalAlpha=beat.alpha;
 
-    // Pulsing glow when catchable
     const catchPulse=(beat.state==='catchable')?0.5+0.5*Math.sin(t*0.018+beat.glowSeed):0;
     ctx.shadowBlur=18+catchPulse*24; ctx.shadowColor=color;
 
     if(beat.type==='hold'){
-      // Double ring
       ctx.strokeStyle=color; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(p.x,p.y,r,0,TAU); ctx.stroke();
       ctx.lineWidth=1.5; ctx.globalAlpha*=0.4;
       ctx.beginPath(); ctx.arc(p.x,p.y,r*1.55,0,TAU); ctx.stroke();
       ctx.globalAlpha=beat.alpha;
-      // Hold progress arc
       if(beat.holdMs>0){
         ctx.strokeStyle=C.WHITE; ctx.lineWidth=3; ctx.shadowColor=C.WHITE; ctx.shadowBlur=12;
         ctx.beginPath();
@@ -712,7 +716,6 @@ class RenderSystem {
         ctx.stroke();
       }
     } else {
-      // Filled radial gradient
       const g=ctx.createRadialGradient(p.x-r*.3,p.y-r*.3,0,p.x,p.y,r);
       g.addColorStop(0,color+'FF'); g.addColorStop(0.5,color+'BB'); g.addColorStop(1,color+'22');
       ctx.fillStyle=g;
@@ -720,7 +723,6 @@ class RenderSystem {
       ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
     }
 
-    // Catchable burst ring
     if(beat.state==='catchable'){
       const ringR=r*(1+catchPulse*0.4);
       ctx.strokeStyle=color; ctx.lineWidth=1.5;
@@ -729,9 +731,8 @@ class RenderSystem {
       ctx.globalAlpha=beat.alpha;
     }
 
-    // Directional arrow (shows lane direction)
     if(beat.type==='directional'){
-      const ang=beat.laneAngle;
+      const ang=beat.angle;
       const al=r*1.7;
       const ax=p.x+Math.cos(ang)*al, ay=p.y+Math.sin(ang)*al;
       const hl=10;
@@ -743,13 +744,12 @@ class RenderSystem {
       ctx.stroke();
     }
 
-    // Chain trailing dots
     if(beat.type==='chain'){
       for(let i=1;i<=3;i++){
         const frac=i/4;
-        const tp=beat.travelProgress;
-        const tx=cx+Math.cos(beat.laneAngle)*hitRadius*(tp-frac*tp*0.35);
-        const ty=cy+Math.sin(beat.laneAngle)*hitRadius*(tp-frac*tp*0.35);
+        const tp2=beat.travelProgress;
+        const tx=lerp(beat.sx,beat.ex,tp2-frac*tp2*0.35);
+        const ty=lerp(beat.sy,beat.ey,tp2-frac*tp2*0.35);
         ctx.globalAlpha=beat.alpha*(1-frac)*0.55;
         ctx.fillStyle=color; ctx.shadowBlur=6;
         ctx.beginPath(); ctx.arc(tx,ty,r*(0.4-frac*0.1),0,TAU); ctx.fill();
@@ -761,7 +761,23 @@ class RenderSystem {
     ctx.restore();
   }
 
-  // Preview line while drawing
+  // Draw hover cursor highlight when near a catchable beat
+  drawHoverHighlight(beat) {
+    const ctx=this.ctx;
+    const p=beat.pos();
+    const r=beat.radius*1.6;
+    const color=BEAT_C[beat.type]||C.CYAN;
+    ctx.save();
+    ctx.globalAlpha=0.35;
+    ctx.strokeStyle=C.WHITE;
+    ctx.lineWidth=3;
+    ctx.shadowBlur=20; ctx.shadowColor=color;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur=0; ctx.restore();
+  }
+
   drawPreview(pts){
     if(pts.length<2)return;
     const ctx=this.ctx;
@@ -775,13 +791,11 @@ class RenderSystem {
     ctx.restore();
   }
 
-  // Deployed slash
   drawSlash(pts,age,hitCount){
     if(pts.length<2)return;
     const ctx=this.ctx;
     const alpha=Math.max(0,1-age*0.75);
     const width=Math.max(2,9*(1-age*0.6));
-    // Colour escalates with hits
     let color=C.CYAN;
     if(hitCount>=4)color=C.WHITE;
     else if(hitCount>=3)color=C.GOLD;
@@ -791,7 +805,6 @@ class RenderSystem {
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.globalAlpha=alpha*0.3;
     ctx.strokeStyle=color; ctx.lineWidth=width*2.5;
-    ctx.shadowBlur=0;
     ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
     for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
     ctx.stroke();
@@ -843,7 +856,6 @@ class RenderSystem {
     ctx.shadowBlur=0; ctx.restore();
   }
 
-  // Health bar (full-width bottom strip + label)
   drawHealth(hp,color,flashAlpha,W,H){
     const ctx=this.ctx;
     ctx.save();
@@ -855,7 +867,6 @@ class RenderSystem {
     ctx.shadowBlur=10; ctx.shadowColor=color;
     ctx.fillRect(0,y,w,barH);
     ctx.shadowBlur=0;
-    // Flash on damage
     if(flashAlpha>0){
       ctx.globalAlpha=flashAlpha*0.4;
       ctx.fillStyle=C.RED;
@@ -869,12 +880,10 @@ class RenderSystem {
     const ctx=this.ctx;
     ctx.save();
 
-    // Beat phase bar (top, 4px)
     ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(0,0,W,4);
     ctx.fillStyle=themeColor; ctx.shadowBlur=6; ctx.shadowColor=themeColor;
     ctx.fillRect(0,0,W*beatPhase,4); ctx.shadowBlur=0;
 
-    // Score
     ctx.font='bold 30px Orbitron,monospace';
     ctx.fillStyle=themeColor;
     ctx.shadowBlur=14; ctx.shadowColor=themeColor;
@@ -883,7 +892,6 @@ class RenderSystem {
     ctx.font='11px Orbitron,monospace'; ctx.fillStyle='#334455'; ctx.shadowBlur=0;
     ctx.fillText('SCORE',22,52);
 
-    // Combo
     if(combo>0){
       ctx.font='bold 28px Orbitron,monospace';
       ctx.fillStyle=themeColor; ctx.shadowBlur=16; ctx.shadowColor=themeColor;
@@ -893,7 +901,6 @@ class RenderSystem {
       ctx.fillText('COMBO',W-22,52);
     }
 
-    // Multiplier badge
     if(mult>1){
       ctx.font='bold 15px Orbitron,monospace';
       ctx.fillStyle=mult>=5?C.WHITE:mult>=4?C.GOLD:mult>=3?C.MAGENTA:C.ORANGE;
@@ -937,7 +944,7 @@ class RenderSystem {
 }
 
 // ============================================================
-//  RHYTHM SYSTEM  (BPM clock)
+//  RHYTHM SYSTEM
 // ============================================================
 class RhythmSystem {
   constructor(BPM){
@@ -959,73 +966,69 @@ class RhythmSystem {
       this.nextBeatTime=this.startTime+this.nextBeatIdx*this.beatMs;
     }
   }
-  beatPhase(){ return clamp((now()-this.startTime)%this.beatMs/this.beatMs,0,1); }
+  beatPhase(){
+    const elapsed=Math.max(0,now()-this.startTime);
+    return clamp(elapsed%this.beatMs/this.beatMs,0,1);
+  }
 }
 
 // ============================================================
 //  PATTERN GENERATOR
-//  Returns [{beat, lanes:[...], type}]
-//  beat = song beat index on which notes should ARRIVE.
+//  Lane indices for 3×3 grid: 0=TL,1=TC,2=TR,3=ML,4=MR,5=BL,6=BC,7=BR
 // ============================================================
 function generatePattern(difficulty){
-  // Lane indices: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-  const ALL=[0,1,2,3,4,5,6,7];
-  const CARD=[0,2,4,6], DIAG=[1,3,5,7];
   const pattern=[];
-
   function push(beat,lanes,type='normal'){
     pattern.push({beat,lanes:Array.isArray(lanes)?lanes:[lanes],type});
   }
 
   if(difficulty==='easy'){
-    // Cardinals every 3 beats, introduce diagonals at beat 16
+    // Cardinals (top/bottom/left/right = lanes 1,6,3,4), then corners
     let b=4;
-    const seq=[0,4,2,6,0,4,6,2,1,5,3,7,0,2,4,6,1,3,5,7,0,6,2,4];
+    const seq=[1,6,3,4,1,4,6,3,0,2,5,7,1,3,6,4,0,7,2,5,1,6];
     for(let i=0;i<22;i++){ push(b,[seq[i%seq.length]],'normal'); b+=3; }
 
   } else if(difficulty==='medium'){
     let b=4;
-    const pairs=[[0,4],[2,6],[1,5],[3,7],[0,2,4,6],[1,3,5,7],[0,5],[2,7],[1,4],[3,6]];
+    // Pairs across the grid (opposite cells)
+    const pairs=[[0,7],[1,6],[2,5],[3,4],[0,2,5,7],[1,3,4,6],[0,6],[2,4],[1,7],[3,5]];
     for(let i=0;i<36;i++){
       const chord=pairs[i%pairs.length];
       const type=i>12&&i%5===0?'chain':i>20&&i%7===0?'hold':'normal';
       push(b,chord,type);
-      // Quick follow-up for chains
       if(type==='chain') push(b+0.5,[chord[(i+2)%chord.length]],'normal');
       b+=i<12?2.5:i<24?1.5:1;
     }
 
   } else { // hard
     let b=4;
-    // Presets: "shapes" requiring specific slash directions
+    // Grid-based shapes: pairs/triples requiring directional slashes
     const shapes=[
-      [0,4],    // vertical slash
-      [2,6],    // horizontal slash
-      [1,5],    // diagonal \
-      [3,7],    // diagonal /
-      [0,2,4,6],// cross — circular or X slash
-      [1,3,5,7],// X
-      [0,1,2],  // top arc
-      [4,5,6],  // bottom arc
-      [2,3,4],  // right arc
-      [6,7,0],  // left arc
-      [0,2,4,6,1,3,5,7], // all 8!
-      [1,4,6],  // triangle
-      [0,3,5],  // triangle
-      [2,5,7],  // triangle
+      [0,7],        // TL→BR diagonal
+      [2,5],        // TR→BL diagonal
+      [1,6],        // TC→BC vertical
+      [3,4],        // ML→MR horizontal
+      [0,2,5,7],   // all corners (X)
+      [1,3,4,6],   // all edges (cross)
+      [0,1,2],     // top row
+      [5,6,7],     // bottom row
+      [0,3,5],     // left column
+      [2,4,7],     // right column
+      [0,1,2,3,4,5,6,7], // all 8
+      [0,4,7],     // TL-MR-BR triangle
+      [2,3,5],     // TR-ML-BL triangle
+      [1,3,4],     // TC-ML-MR cluster
     ];
     let si=0;
     while(b<140){
       const shape=shapes[si%shapes.length];
       const type=Math.random()<0.2?'chain':Math.random()<0.15?'hold':Math.random()<0.12?'directional':'normal';
       push(b,shape,type);
-      // Rapid fire chains
       if(type==='chain'){
         push(b+0.33,[shape[(si+3)%shape.length]],'normal');
         if(si%3===0) push(b+0.66,[shape[(si+5)%shape.length]],'normal');
       }
       si++;
-      // Accelerate spacing
       const interval=Math.max(0.5,1.8-si*0.025);
       b+=interval;
     }
@@ -1048,35 +1051,25 @@ class Game {
     this.draw    = new DrawSystem(this.canvas);
     this.renderer= new RenderSystem(this.canvas);
 
-    // Instantiated per round:
-    this.rhythm  = null;
-    this.beats   = null;
-    this.particles=null;
-    this.shake   = null;
-    this.health  = null;
-    this.score   = null;
-    this.tunnel  = null;
+    this.rhythm   = null;
+    this.beats    = null;
+    this.particles= null;
+    this.shake    = null;
+    this.health   = null;
+    this.score    = null;
+    this.gridbg   = null;
 
-    // Custom track (MP3)
     this._customBuffer = null;
     this._customBeatmap= null;
     this._customBPM    = null;
 
-    // Spawn queue
-    this._spawnQueue     = [];
-    this._lastArrivalMs  = 0;
+    this._spawnQueue    = [];
+    this._lastArrivalMs = 0;
+    this._introStart    = 0;
+    this._hintAlpha     = 1;
+    this._hintFadeAt    = 0;
+    this._deployHadBeats= false;
 
-    // Intro countdown
-    this._introStart = 0;
-
-    // Hint fade
-    this._hintAlpha  = 1;
-    this._hintFadeAt = 0;
-
-    // Whiff tracking
-    this._deployHadBeats = false;
-
-    // Anim
     this._lastT = 0;
 
     this._bindResize();
@@ -1084,11 +1077,28 @@ class Game {
     requestAnimationFrame(t=>this._loop(t));
   }
 
+  // ------- grid helpers -------
+
+  _getGrid() {
+    const W=this.renderer.W, H=this.renderer.H;
+    const gridSize=Math.min(W,H)*CFG.GRID_RATIO;
+    const cellSize=gridSize/3;
+    const left=(W-gridSize)/2;
+    const top=(H-gridSize)/2;
+    return { gridSize, cellSize, left, top, W, H };
+  }
+
+  _cellCenter(col, row, grid) {
+    return {
+      x: grid.left + (col+0.5)*grid.cellSize,
+      y: grid.top  + (row+0.5)*grid.cellSize,
+    };
+  }
+
   // ------- setup -------
 
   _bindResize(){
     const r=()=>{
-      const dpr=window.devicePixelRatio||1;
       const w=window.innerWidth, h=window.innerHeight;
       this.renderer.resize(w,h);
       this.canvas.style.width=w+'px'; this.canvas.style.height=h+'px';
@@ -1108,7 +1118,6 @@ class Game {
     document.getElementById('btn-retry').addEventListener('click',()=>this._startGame());
     document.getElementById('btn-menu').addEventListener('click',()=>this._showMenu());
 
-    // MP3 upload
     const inp=document.getElementById('mp3-input');
     document.getElementById('btn-upload').addEventListener('click',()=>inp.click());
     inp.addEventListener('change',e=>{
@@ -1121,8 +1130,6 @@ class Game {
       if(e.code==='Escape'&&this.state==='playing')this._endGame(false);
     });
   }
-
-  // ------- screen transitions -------
 
   _showMenu(){
     this.state='menu';
@@ -1147,11 +1154,10 @@ class Game {
         if(p>0.5)status.textContent='Detecting beats…';
         if(p>0.8)status.textContent='Building beatmap…';
       });
-      // Decode again for playback (can't reuse analysed buffer)
       const ab2=await file.arrayBuffer();
       const actx=this.audio.ctx||new AudioContext();
       this._customBuffer=await actx.decodeAudioData(ab2);
-      this._customBeatmap=result.beats; // seconds[]
+      this._customBeatmap=result.beats;
       this._customBPM=result.bpm;
       document.getElementById('track-label').textContent=file.name;
       status.textContent=`Found ${result.beats.length} beats · ${result.bpm} BPM`;
@@ -1174,18 +1180,16 @@ class Game {
     document.getElementById('screen-menu').classList.add('hidden');
     document.getElementById('screen-gameover').classList.add('hidden');
 
-    // Fresh systems
-    this.beats   = new BeatSystem();
-    this.particles=new ParticleSystem();
-    this.shake   = new ShakeSystem();
-    this.health  = new HealthSystem();
-    this.score   = new ScoreSystem();
-    this.tunnel  = new TunnelBG();
+    this.beats    = new BeatSystem();
+    this.particles= new ParticleSystem();
+    this.shake    = new ShakeSystem();
+    this.health   = new HealthSystem();
+    this.score    = new ScoreSystem();
+    this.gridbg   = new GridBG();
 
     this.draw.state='idle'; this.draw.preview=[]; this.draw.deployed=[];
     this.draw.deployDur=dc.slashMs;
 
-    // Build spawn queue
     const BPM=this._customBPM||dc.BPM;
     const beatMs=60000/BPM;
     const travelMs=dc.travelBeats*beatMs;
@@ -1193,13 +1197,12 @@ class Game {
 
     let pattern;
     if(this._customBeatmap){
-      // Map onset timestamps → pattern entries
       pattern=this._buildCustomPattern(this._customBeatmap,dc);
     } else {
       pattern=generatePattern(this.diff);
     }
 
-    const startMs=now()+600; // small audio warm-up delay
+    const startMs=now()+600;
 
     this._spawnQueue=[];
     for(const entry of pattern){
@@ -1220,7 +1223,6 @@ class Game {
       ? this._spawnQueue[this._spawnQueue.length-1].arrivalMs
       : startMs+8000;
 
-    // Start rhythm clock (for audio and tunnel pulses)
     this.rhythm=new RhythmSystem(BPM);
     this.rhythm.startTime=startMs;
     this.rhythm.nextBeatTime=startMs;
@@ -1228,11 +1230,9 @@ class Game {
     this.rhythm.running=true;
     this.rhythm.onBeat=(idx,beatT)=>this._onBeat(idx,beatT,BPM);
 
-    // Play custom track if uploaded
     if(this._customBuffer&&this.audio.ctx){
-      const ab=this._customBuffer;
       const src=this.audio.ctx.createBufferSource();
-      src.buffer=ab; src.connect(this.audio.master);
+      src.buffer=this._customBuffer; src.connect(this.audio.master);
       const when=this.audio.ctx.currentTime+(startMs-now())/1000;
       src.start(Math.max(this.audio.ctx.currentTime,when));
       this.audio.srcNode=src;
@@ -1246,13 +1246,9 @@ class Game {
   }
 
   _buildCustomPattern(onsetSec,dc){
-    // Convert onset timestamps to beat indices + assign lanes
-    const ALL=[0,1,2,3,4,5,6,7];
     const BPM=this._customBPM||dc.BPM;
     const beatMs=60000/BPM;
-    const startMs=now()+600;
 
-    // Group close onsets into chords
     const groups=[];
     let i=0;
     while(i<onsetSec.length){
@@ -1267,7 +1263,6 @@ class Game {
 
     return groups.map((g,idx)=>{
       const beatIdx=(g.t*1000)/beatMs;
-      // Assign 1–3 lanes per group
       const numLanes=Math.min(g.count,dc.maxLanes||3);
       const offset=idx*2;
       const lanes=Array.from({length:numLanes},(_,k)=>(offset+k*3)%8);
@@ -1294,39 +1289,63 @@ class Game {
   // ------- beat events -------
 
   _onBeat(beatIdx,beatT,BPM){
-    // Schedule audio
     if(this.audio.ctx&&!this._customBuffer){
       const at=this.audio.ctx.currentTime+(beatT-now())/1000;
       this.audio.scheduleBar(Math.max(this.audio.ctx.currentTime,at),BPM,beatIdx);
     }
-    // Tunnel pulse
-    if(this.tunnel) this.tunnel.onBeat(beatT);
+    if(this.gridbg) this.gridbg.onBeat(beatT);
   }
 
   _processSpawnQueue(){
     const t=now();
+    if(this._spawnQueue.length===0)return;
+    // Pre-compute grid once per frame only if needed
+    let grid=null;
     while(this._spawnQueue.length>0&&this._spawnQueue[0].spawnMs<=t){
       const q=this._spawnQueue.shift();
-      this.beats.spawn(q.laneIdx,q.type,q.spawnMs,q.arrivalMs,q.catchMs);
+      if(!grid) grid=this._getGrid();
+      const [col,row]=LANE_TO_CELL[q.laneIdx%8];
+      const outer=this._cellCenter(col,row,grid);
+      const center=this._cellCenter(CENTER_COL,CENTER_ROW,grid);
+      this.beats.spawn(q.laneIdx,q.type,q.spawnMs,q.arrivalMs,q.catchMs,
+                       outer.x,outer.y,center.x,center.y);
     }
   }
 
   // ------- hit detection -------
 
+  // Hover-to-catch: single beats auto-hit when mouse is over them
+  _checkHoverCatch(){
+    if(this.draw.isDrawing||this.draw.isDeployed)return; // slash mode takes over
+    const mx=this.draw.mouseX, my=this.draw.mouseY;
+    if(mx===-9999)return;
+
+    for(const b of this.beats.beats){
+      if(b.state!=='catchable'||b._scored)continue;
+      const p=b.pos();
+      const hoverR=b.radius*1.5;
+      if(dist(mx,my,p.x,p.y)>hoverR)continue;
+
+      b._scored=true;
+      b.state='hit'; b.alpha=1;
+      const grade=b.catchProgress<0.15||b.catchProgress>0.85?'good':'perfect';
+      const color=BEAT_C[b.type]||C.CYAN;
+      this.particles.burst(p.x,p.y,color,18,360);
+      this.audio.playHit(grade==='perfect');
+      this.health.hit();
+      this.score.hit(grade,p.x,p.y,1);
+    }
+  }
+
+  // Slash hit detection (multi-beat)
   _checkDeployedSlash(){
     if(!this.draw.isDeployed||this.draw.deployed.length<2)return;
     const pts=this.draw.deployed;
-    const W=this.renderer.W, H=this.renderer.H;
-    const cx=W/2, cy=H/2;
-    const hitR=Math.min(W,H)*CFG.HIT_RING_RATIO;
-
-    let hitThisFrame=false;
 
     for(const b of this.beats.beats){
-      // Track that catchable beats exist while slash is deployed (for whiff detection)
       if(b.state==='catchable') this._deployHadBeats=true;
       if(b.state!=='catchable'||b._scored)continue;
-      const p=b.pos(cx,cy,hitR);
+      const p=b.pos();
       const detR=b.radius*CFG.SLASH_HIT_MULT;
       if(!slashHitsBeat(pts,p.x,p.y,detR))continue;
 
@@ -1334,32 +1353,24 @@ class Game {
       b.state='hit'; b.alpha=1;
       const grade=b.catchProgress<0.15||b.catchProgress>0.85?'good':'perfect';
       this.draw.hitCount++;
-      hitThisFrame=true;
       this._deployHadBeats=true;
 
       const color=BEAT_C[b.type]||C.CYAN;
       this.particles.burst(p.x,p.y,color,18,360);
       this.audio.playHit(grade==='perfect');
       this.health.hit();
-      // Score each beat hit immediately
-      this.score.hit(grade, p.x, p.y, this.draw.hitCount);
+      this.score.hit(grade,p.x,p.y,this.draw.hitCount);
     }
-
-    // After checking all beats, register score for this deploy batch
-    // (we accumulate and score after slash expires OR each frame?)
-    // Score incrementally: track per-deploy count
   }
 
   _checkWhiffOnExpire(){
     if(this.draw.state!=='idle'||this.draw.deployed.length===0)return;
-    // Slash expired — check for whiff (deployed with catchable beats but missed all)
-    if(this.draw.hitCount===0 && this._deployHadBeats){
+    if(this.draw.hitCount===0&&this._deployHadBeats){
       const cx=this.renderer.W/2, cy=this.renderer.H/2;
       this.score.whiff(cx,cy);
       this.health.whiff();
       this.shake.shake(8);
     }
-    // Multi-hit celebration (score was already called per-beat above)
     if(this.draw.hitCount>1){
       const cx=this.renderer.W/2, cy=this.renderer.H/2;
       this.audio.playMulti(this.draw.hitCount);
@@ -1367,19 +1378,14 @@ class Game {
       if(this.draw.hitCount>=4) this.shake.shake(5);
     }
     this._deployHadBeats=false;
-    // Clear deployed points so we don't re-check
     this.draw.deployed=[];
   }
 
   _checkMisses(){
-    const cx=this.renderer.W/2, cy=this.renderer.H/2;
-    const W=this.renderer.W, H=this.renderer.H;
-    const hitR=Math.min(W,H)*CFG.HIT_RING_RATIO;
-
     for(const b of this.beats.beats){
       if(b.state==='miss'&&!b._scored){
         b._scored=true;
-        const p=b.pos(cx,cy,hitR);
+        const p=b.pos();
         this.score.miss(p.x,p.y);
         this.health.miss();
         this.shake.shake(12);
@@ -1408,6 +1414,7 @@ class Game {
     this._processSpawnQueue();
     this.beats.update(dt);
 
+    this._checkHoverCatch();
     this._checkDeployedSlash();
     this._checkWhiffOnExpire();
     this._checkMisses();
@@ -1415,18 +1422,14 @@ class Game {
     this.particles.update(dt);
     this.score.update();
     this.shake.update(dt);
-    this.tunnel.update(dt);
+    this.gridbg.update();
 
-    // HP drain
     if(dc.hpDrain>0) this.health.drain(dt,dc.hpDrain);
 
-    // Hint fade
     if(t>this._hintFadeAt) this._hintAlpha=Math.max(0,this._hintAlpha-dt/1200);
 
-    // Death check
     if(this.health.dead){ this._endGame(false); return; }
 
-    // Completion check
     if(this._spawnQueue.length===0&&this.beats.beats.length===0&&t>this._lastArrivalMs+2500){
       this._endGame(true);
     }
@@ -1435,21 +1438,18 @@ class Game {
   _render(){
     const r=this.renderer;
     const W=r.W, H=r.H;
-    const cx=W/2, cy=H/2;
-    const hitR=Math.min(W,H)*CFG.HIT_RING_RATIO;
     const t=now();
 
     r.clear();
 
-    if(this.state==='menu'){
-      // Animated dark bg with subtle particle drift
-      return;
-    }
+    if(this.state==='menu') return;
 
+    const grid=this._getGrid();
     const phase=this.rhythm?this.rhythm.beatPhase():0;
     const theme=this.score?comboColor(this.score.combo):C.CYAN;
+    const cx=grid.left+grid.gridSize/2;
+    const cy=grid.top+grid.gridSize/2;
 
-    // Screen shake offset
     const ctx=r.ctx;
     ctx.save();
     if(this.shake&&(this.shake.x||this.shake.y)){
@@ -1457,23 +1457,37 @@ class Game {
     }
 
     // --- Background ---
-    if(this.tunnel) this.tunnel.draw(ctx,cx,cy,hitR,phase,theme,W,H);
+    if(this.gridbg) this.gridbg.draw(ctx,grid.left,grid.top,grid.cellSize,phase,theme);
 
-    // --- Hit ring ---
-    r.drawHitRing(cx,cy,hitR,phase,theme);
+    // --- Grid ---
+    r.drawGrid(grid.left,grid.top,grid.cellSize,phase,theme);
 
-    // --- Approach indicators (at lane endpoints, shrinking ring) ---
+    // --- Approach indicators ---
     if(this.beats){
-      for(const b of this.beats.beats) r.drawApproachIndicator(cx,cy,hitR,b,theme);
+      for(const b of this.beats.beats) r.drawApproachIndicator(b,theme);
     }
 
-    // --- Beats (sorted back→front by travelProgress, so bigger = on top) ---
+    // --- Hover highlight ---
+    if(this.beats&&!this.draw.isDrawing&&!this.draw.isDeployed){
+      const mx=this.draw.mouseX, my=this.draw.mouseY;
+      if(mx!==-9999){
+        for(const b of this.beats.beats){
+          if(b.state!=='catchable'||b._scored)continue;
+          const p=b.pos();
+          if(dist(mx,my,p.x,p.y)<=b.radius*2.2){
+            r.drawHoverHighlight(b);
+          }
+        }
+      }
+    }
+
+    // --- Beats ---
     if(this.beats){
       const sorted=[...this.beats.beats].sort((a,b)=>a.travelProgress-b.travelProgress);
-      for(const b of sorted) r.drawBeat(b,cx,cy,hitR);
+      for(const b of sorted) r.drawBeat(b);
     }
 
-    // --- Slash preview / deployed ---
+    // --- Slash ---
     if(this.draw.isDrawing&&this.draw.preview.length>1)
       r.drawPreview(this.draw.preview);
     if(this.draw.isDeployed&&this.draw.deployed.length>1)
@@ -1488,16 +1502,16 @@ class Game {
       for(const pop of this.score.popups) r.drawPopup(pop);
     }
 
-    ctx.restore(); // end shake
+    ctx.restore();
 
-    // --- HUD (not shaken) ---
+    // --- HUD ---
     if(this.score&&this.health&&this.rhythm){
       r.drawHUD(this.score.score,this.score.combo,this.score._mult(),phase,theme,W);
       r.drawHealth(this.health.hp,this.health.color,this.health.flashAlpha,W,H);
       r.drawFlash(this.score.screenFlash,theme);
     }
 
-    // --- Intro countdown ---
+    // --- Countdown ---
     const ie=t-this._introStart;
     if(ie<3000){
       const cd=Math.ceil((3000-ie)/1000);
@@ -1506,7 +1520,7 @@ class Game {
     }
 
     // --- Hint ---
-    r.drawHint('HOLD to draw · RELEASE to slash',this._hintAlpha,W,H);
+    r.drawHint('Hover over beats · Hold & drag to slash multiple',this._hintAlpha,W,H);
 
     // --- HP critical vignette ---
     if(this.health&&this.health.hp<30){
