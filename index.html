@@ -10,10 +10,7 @@
 </head>
 <body>
 
-  <!-- Main game canvas (fills viewport) -->
   <canvas id="gameCanvas"></canvas>
-
-  <!-- CRT scanlines -->
   <div id="crt"></div>
 
   <!-- ===== MAIN MENU ===== -->
@@ -22,10 +19,10 @@
 
       <div class="logo">
         <span class="logo-beat">BEAT</span>
-        <span class="logo-catcher">CATCHER</span>
+        <span class="logo-slash">SLASH</span>
       </div>
 
-      <p class="tagline">Draw slashes. Slice beats. Feel the rhythm.</p>
+      <p class="tagline">Drag to slash. Cut the beat. Feel the rhythm.</p>
 
       <!-- MP3 upload -->
       <div class="upload-row">
@@ -34,18 +31,47 @@
         <span id="track-label" class="track-label">Built-in track</span>
       </div>
 
-      <!-- Difficulty -->
-      <div class="diff-row">
-        <button class="diff-btn active" data-diff="easy">EASY</button>
-        <button class="diff-btn" data-diff="medium">MEDIUM</button>
-        <button class="diff-btn" data-diff="hard">HARD</button>
+      <!-- 5-star difficulty -->
+      <div class="diff-section">
+        <div class="diff-label">DIFFICULTY</div>
+        <div class="diff-stars-row" id="diff-stars">
+          <button class="diff-star-btn" data-diff="1">
+            <span class="star-icons">★</span>
+            <span class="diff-name">BEGINNER</span>
+          </button>
+          <button class="diff-star-btn active" data-diff="2">
+            <span class="star-icons">★★</span>
+            <span class="diff-name">EASY</span>
+          </button>
+          <button class="diff-star-btn" data-diff="3">
+            <span class="star-icons">★★★</span>
+            <span class="diff-name">NORMAL</span>
+          </button>
+          <button class="diff-star-btn" data-diff="4">
+            <span class="star-icons">★★★★</span>
+            <span class="diff-name">HARD</span>
+          </button>
+          <button class="diff-star-btn" data-diff="5">
+            <span class="star-icons">★★★★★</span>
+            <span class="diff-name">EXTREME</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Voice mode toggle (shows for diff 4+) -->
+      <div class="voice-row" id="voice-row">
+        <label class="toggle-label">
+          <input type="checkbox" id="voice-toggle">
+          <span class="toggle-track"></span>
+          <span class="toggle-text">🎤 VOICE MODE — words spawn notes</span>
+        </label>
       </div>
 
       <button id="btn-play" class="neon-btn primary-btn">► PLAY</button>
 
       <div class="instructions">
-        <p><span class="key">HOLD</span> mouse to draw &nbsp;·&nbsp; <span class="key">RELEASE</span> to slash</p>
-        <p>Slash through beat circles before they expire · Missing costs health</p>
+        <p><span class="key">DRAG</span> mouse to slash &nbsp;·&nbsp; slice notes as approach circle meets them</p>
+        <p>Miss too many beats and you lose health · Chain slices for combo</p>
         <p><span class="key">ESC</span> to quit</p>
       </div>
 
@@ -66,6 +92,12 @@
   <!-- ===== GAME OVER ===== -->
   <div id="screen-gameover" class="overlay hidden">
     <div class="overlay-content">
+
+      <div class="rank-badge-container">
+        <div id="gameover-rank" class="rank-badge rank-s">S</div>
+        <div id="gameover-stars" class="result-stars">★★★</div>
+      </div>
+
       <h1 class="gameover-title" id="gameover-heading">GAME OVER</h1>
 
       <div class="result-grid">
