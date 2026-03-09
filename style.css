@@ -1,8 +1,7 @@
 /* ============================================================
-   BEAT CATCHER v2 — Neon Arcade Styles
+   BEAT SLASH — Styles
    ============================================================ */
 
-/* -- Reset ------------------------------------------------- */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
 :root {
@@ -13,8 +12,8 @@
   --orange:  #FF8800;
   --red:     #FF3355;
   --white:   #FFFFFF;
-  --bg:      #020210;
-  --dim:     #223355;
+  --bg:      #010108;
+  --dim:     #1a2a3a;
   --font:    'Orbitron', 'Courier New', monospace;
 }
 
@@ -44,10 +43,10 @@ html, body {
   pointer-events: none;
   z-index: 50;
   background: repeating-linear-gradient(
-    0deg, transparent, transparent 2px,
-    rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px
   );
-  box-shadow: inset 0 0 150px rgba(0,0,0,0.65);
+  box-shadow: inset 0 0 200px rgba(0,0,0,0.7);
 }
 
 /* -- Overlays ---------------------------------------------- */
@@ -57,45 +56,46 @@ html, body {
   display: flex; align-items: center; justify-content: center;
   z-index: 100;
   background: radial-gradient(ellipse at center,
-    rgba(2,2,22,0.93) 0%, rgba(1,1,10,0.98) 100%);
+    rgba(1,1,18,0.95) 0%, rgba(0,0,6,0.99) 100%);
+  backdrop-filter: blur(2px);
 }
 .overlay.hidden { display: none; }
 
 .overlay-content {
   display: flex; flex-direction: column;
-  align-items: center; gap: 28px;
-  max-width: 600px; width: 92%;
+  align-items: center; gap: 24px;
+  max-width: 620px; width: 94%;
   padding: 48px 28px;
 }
 
 /* -- Logo -------------------------------------------------- */
 .logo {
-  font-size: clamp(44px, 9vw, 88px);
+  font-size: clamp(48px, 10vw, 96px);
   font-weight: 900;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   line-height: 1;
   text-align: center;
 }
 .logo-beat {
   color: var(--cyan);
-  text-shadow: 0 0 12px var(--cyan), 0 0 36px var(--cyan), 0 0 80px rgba(0,255,255,0.35);
+  text-shadow: 0 0 16px var(--cyan), 0 0 48px var(--cyan), 0 0 100px rgba(0,255,255,0.3);
   display: block;
 }
-.logo-catcher {
+.logo-slash {
   color: var(--magenta);
-  text-shadow: 0 0 12px var(--magenta), 0 0 36px var(--magenta), 0 0 80px rgba(255,0,255,0.35);
+  text-shadow: 0 0 16px var(--magenta), 0 0 48px var(--magenta), 0 0 100px rgba(255,0,255,0.3);
   display: block;
-  font-size: 0.5em;
-  letter-spacing: 0.35em;
+  font-size: 0.48em;
+  letter-spacing: 0.4em;
   margin-top: 6px;
 }
 
 .tagline {
-  color: #667799;
-  font-size: 13px;
-  letter-spacing: 0.08em;
+  color: #556677;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-align: center;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 /* -- Upload ------------------------------------------------ */
@@ -104,16 +104,16 @@ html, body {
   flex-wrap: wrap; justify-content: center;
 }
 .upload-btn {
-  font-size: 13px !important;
-  padding: 10px 24px !important;
+  font-size: 12px !important;
+  padding: 10px 22px !important;
   border-color: var(--magenta) !important;
   color: var(--magenta) !important;
   text-shadow: 0 0 8px var(--magenta) !important;
-  box-shadow: 0 0 14px rgba(255,0,255,0.2) !important;
+  box-shadow: 0 0 14px rgba(255,0,255,0.18) !important;
 }
 .upload-btn:hover {
   background: rgba(255,0,255,0.1) !important;
-  box-shadow: 0 0 28px rgba(255,0,255,0.4) !important;
+  box-shadow: 0 0 30px rgba(255,0,255,0.4) !important;
 }
 .track-label {
   font-size: 11px;
@@ -125,27 +125,99 @@ html, body {
   white-space: nowrap;
 }
 
-/* -- Difficulty -------------------------------------------- */
-.diff-row { display: flex; gap: 12px; }
-.diff-btn {
+/* -- 5-Star Difficulty ------------------------------------- */
+.diff-section {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 100%;
+}
+.diff-label {
+  font-size: 10px; letter-spacing: 0.25em; color: #334455;
+}
+.diff-stars-row {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.diff-star-btn {
   background: transparent;
-  border: 1px solid var(--dim);
-  color: #445566;
+  border: 1px solid #1a2a3a;
+  color: #334455;
   font-family: var(--font);
-  font-size: 13px; font-weight: 700;
-  letter-spacing: 0.14em;
-  padding: 10px 24px;
+  font-size: 11px;
+  padding: 10px 14px;
   cursor: pointer;
-  transition: all 0.18s;
-  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+  transition: all 0.15s;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 80px;
 }
-.diff-btn:hover { border-color: var(--cyan); color: var(--cyan); }
-.diff-btn.active {
-  border-color: var(--cyan); color: var(--cyan);
-  background: rgba(0,255,255,0.07);
-  text-shadow: 0 0 10px var(--cyan);
-  box-shadow: 0 0 14px rgba(0,255,255,0.2);
+.diff-star-btn .star-icons {
+  font-size: 14px;
+  letter-spacing: -2px;
+  color: #334455;
+  transition: all 0.15s;
 }
+.diff-star-btn .diff-name {
+  font-size: 9px; letter-spacing: 0.12em;
+}
+.diff-star-btn:hover {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.diff-star-btn:hover .star-icons { color: var(--yellow); text-shadow: 0 0 8px var(--yellow); }
+.diff-star-btn.active {
+  border-color: var(--yellow);
+  color: var(--yellow);
+  background: rgba(255,255,0,0.05);
+  text-shadow: 0 0 10px var(--yellow);
+  box-shadow: 0 0 18px rgba(255,255,0,0.2);
+}
+.diff-star-btn.active .star-icons {
+  color: var(--yellow);
+  text-shadow: 0 0 12px var(--yellow), 0 0 28px rgba(255,255,0,0.5);
+}
+
+/* -- Voice toggle ------------------------------------------ */
+.voice-row {
+  display: flex; align-items: center;
+  transition: opacity 0.2s;
+}
+.voice-row.hidden-soft { opacity: 0; pointer-events: none; }
+.toggle-label {
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+}
+.toggle-label input { display: none; }
+.toggle-track {
+  width: 36px; height: 18px;
+  border: 1px solid #334455;
+  border-radius: 9px;
+  position: relative;
+  transition: all 0.2s;
+  background: rgba(0,255,255,0.04);
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #334455;
+  top: 2px; left: 2px;
+  transition: all 0.2s;
+}
+input:checked + .toggle-track {
+  border-color: var(--cyan);
+  background: rgba(0,255,255,0.12);
+  box-shadow: 0 0 12px rgba(0,255,255,0.3);
+}
+input:checked + .toggle-track::after {
+  left: 20px;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+.toggle-text {
+  font-size: 11px; color: #445566; letter-spacing: 0.1em;
+  transition: color 0.2s;
+}
+input:checked ~ .toggle-text { color: var(--cyan); }
 
 /* -- Neon Buttons ------------------------------------------ */
 .neon-btn {
@@ -153,81 +225,111 @@ html, body {
   border: 2px solid var(--cyan);
   color: var(--cyan);
   font-family: var(--font);
-  font-size: 15px; font-weight: 700;
-  letter-spacing: 0.2em;
-  padding: 16px 44px;
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 0.22em;
+  padding: 14px 40px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: all 0.15s;
   clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
   text-shadow: 0 0 10px var(--cyan);
-  box-shadow: 0 0 14px rgba(0,255,255,0.22), inset 0 0 14px rgba(0,255,255,0.04);
+  box-shadow: 0 0 16px rgba(0,255,255,0.22), inset 0 0 16px rgba(0,255,255,0.04);
 }
 .neon-btn:hover {
   background: rgba(0,255,255,0.1);
-  box-shadow: 0 0 28px rgba(0,255,255,0.45), inset 0 0 14px rgba(0,255,255,0.1);
-  text-shadow: 0 0 20px var(--cyan);
+  box-shadow: 0 0 32px rgba(0,255,255,0.5), inset 0 0 16px rgba(0,255,255,0.12);
+  text-shadow: 0 0 22px var(--cyan);
 }
 .neon-btn:active { transform: scale(0.97); }
 
 .primary-btn {
-  font-size: 20px; padding: 18px 60px;
-  box-shadow: 0 0 24px rgba(0,255,255,0.35), 0 0 60px rgba(0,255,255,0.1), inset 0 0 24px rgba(0,255,255,0.05);
+  font-size: 18px; padding: 16px 56px;
+  box-shadow: 0 0 28px rgba(0,255,255,0.35), 0 0 70px rgba(0,255,255,0.1), inset 0 0 28px rgba(0,255,255,0.06);
 }
 
 /* -- Instructions ------------------------------------------ */
 .instructions {
-  display: flex; flex-direction: column; gap: 7px; text-align: center;
+  display: flex; flex-direction: column; gap: 6px; text-align: center;
 }
-.instructions p { font-size: 12px; color: #445566; letter-spacing: 0.07em; line-height: 1.5; }
+.instructions p { font-size: 11px; color: #445566; letter-spacing: 0.07em; line-height: 1.6; }
 .key {
   color: var(--yellow); font-weight: 700;
-  padding: 1px 7px; border: 1px solid rgba(255,255,0,0.4); font-size: 11px;
+  padding: 1px 7px; border: 1px solid rgba(255,255,0,0.35); font-size: 10px;
 }
 
 /* -- Loading ----------------------------------------------- */
 .loading-bar-container {
   width: 380px; max-width: 90vw;
-  height: 6px; background: rgba(0,255,255,0.1);
-  border: 1px solid rgba(0,255,255,0.2);
+  height: 4px; background: rgba(0,255,255,0.08);
+  border: 1px solid rgba(0,255,255,0.18);
 }
 .loading-bar-fill {
   height: 100%;
   width: 0%;
-  background: var(--cyan);
-  box-shadow: 0 0 10px var(--cyan);
-  transition: width 0.2s ease;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  box-shadow: 0 0 12px var(--cyan);
+  transition: width 0.25s ease;
+}
+
+/* -- Rank Badge -------------------------------------------- */
+.rank-badge-container {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.rank-badge {
+  font-size: clamp(64px, 14vw, 120px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: all 0.3s;
+}
+.rank-ss { color: #FFD700; text-shadow: 0 0 20px #FFD700, 0 0 60px #FFD700, 0 0 120px rgba(255,215,0,0.5); }
+.rank-s  { color: #FF8800; text-shadow: 0 0 20px #FF8800, 0 0 60px #FF8800, 0 0 120px rgba(255,136,0,0.5); }
+.rank-a  { color: #00FF88; text-shadow: 0 0 16px #00FF88, 0 0 50px #00FF88, 0 0 100px rgba(0,255,136,0.4); }
+.rank-b  { color: #00FFFF; text-shadow: 0 0 16px #00FFFF, 0 0 50px #00FFFF, 0 0 100px rgba(0,255,255,0.35); }
+.rank-c  { color: #FF00FF; text-shadow: 0 0 16px #FF00FF, 0 0 50px #FF00FF; }
+.rank-d  { color: #FF3355; text-shadow: 0 0 16px #FF3355, 0 0 50px #FF3355; }
+.rank-f  { color: #556677; text-shadow: none; }
+
+.result-stars {
+  font-size: 28px;
+  color: var(--yellow);
+  text-shadow: 0 0 12px var(--yellow), 0 0 30px rgba(255,255,0,0.4);
+  letter-spacing: 4px;
 }
 
 /* -- Game Over --------------------------------------------- */
 .gameover-title {
-  font-size: clamp(32px, 7vw, 64px);
+  font-size: clamp(28px, 6vw, 56px);
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--magenta);
   text-shadow: 0 0 12px var(--magenta), 0 0 40px var(--magenta), 0 0 80px rgba(255,0,255,0.3);
 }
-.gameover-title.cleared { color: var(--cyan); text-shadow: 0 0 12px var(--cyan), 0 0 40px var(--cyan); }
+.gameover-title.cleared {
+  color: var(--cyan);
+  text-shadow: 0 0 12px var(--cyan), 0 0 40px var(--cyan), 0 0 80px rgba(0,255,255,0.3);
+}
 
 .result-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 20px 32px; width: 100%;
-  padding: 28px; border: 1px solid rgba(0,255,255,0.15);
-  background: rgba(0,255,255,0.02);
+  gap: 18px 28px; width: 100%;
+  padding: 24px 20px;
+  border: 1px solid rgba(0,255,255,0.12);
+  background: rgba(0,255,255,0.015);
 }
 .result-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.result-label { font-size: 10px; letter-spacing: 0.15em; color: #445566; }
-.result-value { font-size: 26px; font-weight: 700; letter-spacing: 0.04em; }
+.result-label { font-size: 9px; letter-spacing: 0.18em; color: #334455; }
+.result-value { font-size: 24px; font-weight: 700; letter-spacing: 0.04em; }
 .result-value.cyan    { color: var(--cyan);    text-shadow: 0 0 12px var(--cyan); }
 .result-value.magenta { color: var(--magenta); text-shadow: 0 0 12px var(--magenta); }
 .result-value.yellow  { color: var(--yellow);  text-shadow: 0 0 12px var(--yellow); }
 .result-value.green   { color: var(--green);   text-shadow: 0 0 12px var(--green); }
 .result-value.red     { color: var(--red);     text-shadow: 0 0 12px var(--red); }
 
-.gameover-btns { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.gameover-btns { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 
 /* -- Responsive -------------------------------------------- */
 @media (max-width: 520px) {
   .result-grid { grid-template-columns: 1fr 1fr; }
-  .diff-row { gap: 8px; }
-  .diff-btn { padding: 8px 14px; font-size: 11px; }
+  .diff-stars-row { gap: 4px; }
+  .diff-star-btn { min-width: 62px; padding: 8px 10px; }
 }
