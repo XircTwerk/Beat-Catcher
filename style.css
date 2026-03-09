@@ -1,30 +1,25 @@
 /* ============================================================
-   BEAT CATCHER — Neon Arcade Styles
+   BEAT CATCHER v2 — Neon Arcade Styles
    ============================================================ */
 
-/* -- Reset & Base ------------------------------------------ */
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* -- Reset ------------------------------------------------- */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
 :root {
   --cyan:    #00FFFF;
   --magenta: #FF00FF;
   --yellow:  #FFFF00;
-  --purple:  #AA00FF;
   --green:   #00FF88;
+  --orange:  #FF8800;
   --red:     #FF3355;
   --white:   #FFFFFF;
-  --bg:      #040414;
-  --text-dim:#667799;
+  --bg:      #020210;
+  --dim:     #223355;
   --font:    'Orbitron', 'Courier New', monospace;
 }
 
 html, body {
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   overflow: hidden;
   background: var(--bg);
   color: var(--cyan);
@@ -33,135 +28,123 @@ html, body {
   -webkit-user-select: none;
 }
 
-/* -- Game Canvas ------------------------------------------- */
+/* -- Canvas ------------------------------------------------ */
 #gameCanvas {
   display: block;
   position: fixed;
-  top: 0; left: 0;
-  width: 100%;
-  height: 100%;
+  top:0; left:0;
+  width: 100%; height: 100%;
   cursor: crosshair;
 }
 
-/* -- CRT Scanline Overlay ---------------------------------- */
+/* -- CRT --------------------------------------------------- */
 #crt {
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
+  top:0; left:0; width:100%; height:100%;
   pointer-events: none;
   z-index: 50;
-
-  /* Scanlines */
   background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.06) 2px,
-    rgba(0, 0, 0, 0.06) 4px
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px
   );
-
-  /* Vignette */
-  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 150px rgba(0,0,0,0.65);
 }
 
-/* -- Overlays (Menu / Game Over) --------------------------- */
+/* -- Overlays ---------------------------------------------- */
 .overlay {
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top:0; left:0; width:100%; height:100%;
+  display: flex; align-items: center; justify-content: center;
   z-index: 100;
   background: radial-gradient(ellipse at center,
-    rgba(4, 4, 30, 0.92) 0%,
-    rgba(2, 2, 14, 0.97) 100%
-  );
+    rgba(2,2,22,0.93) 0%, rgba(1,1,10,0.98) 100%);
 }
-
-.overlay.hidden {
-  display: none;
-}
+.overlay.hidden { display: none; }
 
 .overlay-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  max-width: 520px;
-  width: 90%;
-  padding: 40px 24px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 28px;
+  max-width: 600px; width: 92%;
+  padding: 48px 28px;
 }
 
 /* -- Logo -------------------------------------------------- */
 .logo {
-  font-size: clamp(36px, 8vw, 72px);
+  font-size: clamp(44px, 9vw, 88px);
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   line-height: 1;
   text-align: center;
 }
-
 .logo-beat {
   color: var(--cyan);
-  text-shadow:
-    0 0 10px var(--cyan),
-    0 0 30px var(--cyan),
-    0 0 60px rgba(0, 255, 255, 0.4);
+  text-shadow: 0 0 12px var(--cyan), 0 0 36px var(--cyan), 0 0 80px rgba(0,255,255,0.35);
   display: block;
 }
-
 .logo-catcher {
   color: var(--magenta);
-  text-shadow:
-    0 0 10px var(--magenta),
-    0 0 30px var(--magenta),
-    0 0 60px rgba(255, 0, 255, 0.4);
+  text-shadow: 0 0 12px var(--magenta), 0 0 36px var(--magenta), 0 0 80px rgba(255,0,255,0.35);
   display: block;
-  font-size: 0.55em;
-  letter-spacing: 0.3em;
-  margin-top: 4px;
+  font-size: 0.5em;
+  letter-spacing: 0.35em;
+  margin-top: 6px;
 }
 
 .tagline {
-  color: var(--text-dim);
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  color: #667799;
+  font-size: 13px;
+  letter-spacing: 0.08em;
   text-align: center;
+  line-height: 1.6;
 }
 
-/* -- Difficulty Buttons ------------------------------------ */
-.difficulty-row {
-  display: flex;
-  gap: 10px;
+/* -- Upload ------------------------------------------------ */
+.upload-row {
+  display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap; justify-content: center;
+}
+.upload-btn {
+  font-size: 13px !important;
+  padding: 10px 24px !important;
+  border-color: var(--magenta) !important;
+  color: var(--magenta) !important;
+  text-shadow: 0 0 8px var(--magenta) !important;
+  box-shadow: 0 0 14px rgba(255,0,255,0.2) !important;
+}
+.upload-btn:hover {
+  background: rgba(255,0,255,0.1) !important;
+  box-shadow: 0 0 28px rgba(255,0,255,0.4) !important;
+}
+.track-label {
+  font-size: 11px;
+  color: #445566;
+  letter-spacing: 0.08em;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* -- Difficulty -------------------------------------------- */
+.diff-row { display: flex; gap: 12px; }
 .diff-btn {
   background: transparent;
-  border: 1px solid var(--text-dim);
-  color: var(--text-dim);
+  border: 1px solid var(--dim);
+  color: #445566;
   font-family: var(--font);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  padding: 8px 18px;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 10px 24px;
   cursor: pointer;
-  transition: all 0.2s;
-  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  transition: all 0.18s;
+  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
 }
-
-.diff-btn:hover {
-  border-color: var(--cyan);
-  color: var(--cyan);
-  text-shadow: 0 0 8px var(--cyan);
-}
-
+.diff-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .diff-btn.active {
-  border-color: var(--cyan);
-  color: var(--cyan);
-  background: rgba(0, 255, 255, 0.08);
+  border-color: var(--cyan); color: var(--cyan);
+  background: rgba(0,255,255,0.07);
   text-shadow: 0 0 10px var(--cyan);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.2);
+  box-shadow: 0 0 14px rgba(0,255,255,0.2);
 }
 
 /* -- Neon Buttons ------------------------------------------ */
@@ -170,119 +153,81 @@ html, body {
   border: 2px solid var(--cyan);
   color: var(--cyan);
   font-family: var(--font);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  padding: 14px 40px;
+  font-size: 15px; font-weight: 700;
+  letter-spacing: 0.2em;
+  padding: 16px 44px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
   clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
-  text-shadow: 0 0 8px var(--cyan);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.2), inset 0 0 12px rgba(0, 255, 255, 0.05);
+  text-shadow: 0 0 10px var(--cyan);
+  box-shadow: 0 0 14px rgba(0,255,255,0.22), inset 0 0 14px rgba(0,255,255,0.04);
 }
-
 .neon-btn:hover {
-  background: rgba(0, 255, 255, 0.1);
-  box-shadow: 0 0 24px rgba(0, 255, 255, 0.4), inset 0 0 12px rgba(0, 255, 255, 0.1);
-  text-shadow: 0 0 16px var(--cyan);
+  background: rgba(0,255,255,0.1);
+  box-shadow: 0 0 28px rgba(0,255,255,0.45), inset 0 0 14px rgba(0,255,255,0.1);
+  text-shadow: 0 0 20px var(--cyan);
 }
-
-.neon-btn:active {
-  transform: scale(0.97);
-}
+.neon-btn:active { transform: scale(0.97); }
 
 .primary-btn {
-  font-size: 18px;
-  padding: 16px 52px;
-  border-color: var(--cyan);
-  box-shadow:
-    0 0 20px rgba(0, 255, 255, 0.3),
-    0 0 40px rgba(0, 255, 255, 0.1),
-    inset 0 0 20px rgba(0, 255, 255, 0.05);
+  font-size: 20px; padding: 18px 60px;
+  box-shadow: 0 0 24px rgba(0,255,255,0.35), 0 0 60px rgba(0,255,255,0.1), inset 0 0 24px rgba(0,255,255,0.05);
 }
 
 /* -- Instructions ------------------------------------------ */
 .instructions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: center;
+  display: flex; flex-direction: column; gap: 7px; text-align: center;
 }
-
-.instructions p {
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-}
-
+.instructions p { font-size: 12px; color: #445566; letter-spacing: 0.07em; line-height: 1.5; }
 .key {
-  color: var(--yellow);
-  font-weight: 700;
-  padding: 1px 6px;
-  border: 1px solid rgba(255, 255, 0, 0.4);
-  font-size: 10px;
-  vertical-align: middle;
+  color: var(--yellow); font-weight: 700;
+  padding: 1px 7px; border: 1px solid rgba(255,255,0,0.4); font-size: 11px;
 }
 
-/* -- Game Over -------------------------------------------- */
-.gameover-title {
-  font-size: clamp(28px, 6vw, 52px);
-  font-weight: 900;
-  color: var(--magenta);
-  letter-spacing: 0.12em;
-  text-shadow:
-    0 0 10px var(--magenta),
-    0 0 30px var(--magenta),
-    0 0 60px rgba(255, 0, 255, 0.3);
+/* -- Loading ----------------------------------------------- */
+.loading-bar-container {
+  width: 380px; max-width: 90vw;
+  height: 6px; background: rgba(0,255,255,0.1);
+  border: 1px solid rgba(0,255,255,0.2);
 }
+.loading-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+  transition: width 0.2s ease;
+}
+
+/* -- Game Over --------------------------------------------- */
+.gameover-title {
+  font-size: clamp(32px, 7vw, 64px);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--magenta);
+  text-shadow: 0 0 12px var(--magenta), 0 0 40px var(--magenta), 0 0 80px rgba(255,0,255,0.3);
+}
+.gameover-title.cleared { color: var(--cyan); text-shadow: 0 0 12px var(--cyan), 0 0 40px var(--cyan); }
 
 .result-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px 24px;
-  width: 100%;
-  padding: 24px;
-  border: 1px solid rgba(0, 255, 255, 0.15);
-  background: rgba(0, 255, 255, 0.02);
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px 32px; width: 100%;
+  padding: 28px; border: 1px solid rgba(0,255,255,0.15);
+  background: rgba(0,255,255,0.02);
 }
+.result-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.result-label { font-size: 10px; letter-spacing: 0.15em; color: #445566; }
+.result-value { font-size: 26px; font-weight: 700; letter-spacing: 0.04em; }
+.result-value.cyan    { color: var(--cyan);    text-shadow: 0 0 12px var(--cyan); }
+.result-value.magenta { color: var(--magenta); text-shadow: 0 0 12px var(--magenta); }
+.result-value.yellow  { color: var(--yellow);  text-shadow: 0 0 12px var(--yellow); }
+.result-value.green   { color: var(--green);   text-shadow: 0 0 12px var(--green); }
+.result-value.red     { color: var(--red);     text-shadow: 0 0 12px var(--red); }
 
-.result-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.result-label {
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-}
-
-.result-value {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.result-value.cyan    { color: var(--cyan);    text-shadow: 0 0 10px var(--cyan); }
-.result-value.magenta { color: var(--magenta); text-shadow: 0 0 10px var(--magenta); }
-.result-value.yellow  { color: var(--yellow);  text-shadow: 0 0 10px var(--yellow); }
-.result-value.green   { color: var(--green);   text-shadow: 0 0 10px var(--green); }
-.result-value.red     { color: var(--red);     text-shadow: 0 0 10px var(--red); }
-
-/* -- Combo Flash Animation --------------------------------- */
-@keyframes comboFlash {
-  0%   { opacity: 1; transform: scale(1.2); }
-  100% { opacity: 0; transform: scale(1.6); }
-}
+.gameover-btns { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 
 /* -- Responsive -------------------------------------------- */
-@media (max-width: 480px) {
-  .result-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .logo-beat {
-    font-size: 44px;
-  }
+@media (max-width: 520px) {
+  .result-grid { grid-template-columns: 1fr 1fr; }
+  .diff-row { gap: 8px; }
+  .diff-btn { padding: 8px 14px; font-size: 11px; }
 }

@@ -10,22 +10,32 @@
 </head>
 <body>
 
-  <!-- Main canvas -->
+  <!-- Main game canvas (fills viewport) -->
   <canvas id="gameCanvas"></canvas>
 
-  <!-- CRT scanline overlay -->
+  <!-- CRT scanlines -->
   <div id="crt"></div>
 
-  <!-- MAIN MENU -->
+  <!-- ===== MAIN MENU ===== -->
   <div id="screen-menu" class="overlay">
     <div class="overlay-content">
+
       <div class="logo">
         <span class="logo-beat">BEAT</span>
         <span class="logo-catcher">CATCHER</span>
       </div>
-      <p class="tagline">Draw lines. Catch beats. Feel the rhythm.</p>
 
-      <div class="difficulty-row">
+      <p class="tagline">Draw slashes. Slice beats. Feel the rhythm.</p>
+
+      <!-- MP3 upload -->
+      <div class="upload-row">
+        <input type="file" id="mp3-input" accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg" style="display:none">
+        <button id="btn-upload" class="neon-btn upload-btn">♪ IMPORT TRACK</button>
+        <span id="track-label" class="track-label">Built-in track</span>
+      </div>
+
+      <!-- Difficulty -->
+      <div class="diff-row">
         <button class="diff-btn active" data-diff="easy">EASY</button>
         <button class="diff-btn" data-diff="medium">MEDIUM</button>
         <button class="diff-btn" data-diff="hard">HARD</button>
@@ -34,44 +44,61 @@
       <button id="btn-play" class="neon-btn primary-btn">► PLAY</button>
 
       <div class="instructions">
-        <p><span class="key">HOLD</span> mouse button &amp; draw to catch beats at the center</p>
-        <p><span class="key">ESC</span> to quit during play</p>
+        <p><span class="key">HOLD</span> mouse to draw &nbsp;·&nbsp; <span class="key">RELEASE</span> to slash</p>
+        <p>Slash through beat circles before they expire · Missing costs health</p>
+        <p><span class="key">ESC</span> to quit</p>
       </div>
+
     </div>
   </div>
 
-  <!-- GAME OVER -->
+  <!-- ===== LOADING ===== -->
+  <div id="screen-loading" class="overlay hidden">
+    <div class="overlay-content">
+      <div class="logo-beat" style="font-size:52px;font-weight:900">ANALYZING</div>
+      <div class="loading-bar-container">
+        <div id="loading-bar-fill" class="loading-bar-fill"></div>
+      </div>
+      <p id="loading-status" class="tagline">Detecting beats…</p>
+    </div>
+  </div>
+
+  <!-- ===== GAME OVER ===== -->
   <div id="screen-gameover" class="overlay hidden">
     <div class="overlay-content">
-      <h1 class="gameover-title">GAME OVER</h1>
+      <h1 class="gameover-title" id="gameover-heading">GAME OVER</h1>
+
       <div class="result-grid">
         <div class="result-item">
           <span class="result-label">SCORE</span>
-          <span id="result-score" class="result-value cyan">0</span>
+          <span id="res-score"    class="result-value cyan">0</span>
         </div>
         <div class="result-item">
           <span class="result-label">MAX COMBO</span>
-          <span id="result-combo" class="result-value magenta">0</span>
+          <span id="res-combo"    class="result-value magenta">0</span>
         </div>
         <div class="result-item">
           <span class="result-label">ACCURACY</span>
-          <span id="result-accuracy" class="result-value yellow">0%</span>
+          <span id="res-accuracy" class="result-value yellow">0%</span>
         </div>
         <div class="result-item">
           <span class="result-label">PERFECT</span>
-          <span id="result-perfects" class="result-value cyan">0</span>
+          <span id="res-perfects" class="result-value cyan">0</span>
         </div>
         <div class="result-item">
           <span class="result-label">GOOD</span>
-          <span id="result-goods" class="result-value green">0</span>
+          <span id="res-goods"    class="result-value green">0</span>
         </div>
         <div class="result-item">
           <span class="result-label">MISS</span>
-          <span id="result-misses" class="result-value red">0</span>
+          <span id="res-misses"   class="result-value red">0</span>
         </div>
       </div>
-      <button id="btn-retry" class="neon-btn primary-btn">► PLAY AGAIN</button>
-      <button id="btn-menu" class="neon-btn">MAIN MENU</button>
+
+      <div class="gameover-btns">
+        <button id="btn-retry"  class="neon-btn primary-btn">► RETRY</button>
+        <button id="btn-menu"   class="neon-btn">MENU</button>
+      </div>
     </div>
   </div>
 
